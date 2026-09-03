@@ -26,9 +26,8 @@ export function DesignCreatePage() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.design_name.trim()) e.design_name = 'Design name is required';
-    if (!form.design_code.trim()) e.design_code = 'Design code is required';
-    else if (!/^[A-Z0-9_]+$/.test(form.design_code.trim()))
-      e.design_code = 'Use uppercase letters, numbers, and underscores only';
+    if (!['design_01', 'design_02', 'design_03', 'design_04', 'design_05'].includes(form.design_code))
+      e.design_code = 'Select one of the five supported design codes.';
     if (!form.production_url.trim()) e.production_url = 'Production URL is required';
     else if (!/^https?:\/\/.+/.test(form.production_url.trim()))
       e.production_url = 'Must be a valid URL (starting with http:// or https://)';
@@ -46,7 +45,7 @@ export function DesignCreatePage() {
         .from('designs')
         .insert({
           design_name: form.design_name.trim(),
-          design_code: form.design_code.trim().toUpperCase(),
+          design_code: form.design_code,
           production_url: form.production_url.trim(),
           description: form.description.trim() || null,
           status: form.status,
@@ -102,18 +101,23 @@ export function DesignCreatePage() {
                 error={errors.design_name}
                 placeholder="e.g. Royal Floral"
               />
-              <Input
-                label="Design Code"
-                required
-                value={form.design_code}
-                onChange={(e) => {
-                  setForm({ ...form, design_code: e.target.value.toUpperCase() });
-                  setErrors({ ...errors, design_code: '' });
-                }}
-                error={errors.design_code}
-                placeholder="e.g. DESIGN_01"
-                hint="Uppercase letters, numbers, and underscores"
-              />
+              <div>
+                <label className="label-base">Design Code *</label>
+                <select
+                  value={form.design_code}
+                  onChange={(e) => { setForm({ ...form, design_code: e.target.value }); setErrors({ ...errors, design_code: '' }); }}
+                  className="input-base"
+                >
+                  <option value="">Select design code...</option>
+                  <option value="design_01">design_01</option>
+                  <option value="design_02">design_02</option>
+                  <option value="design_03">design_03</option>
+                  <option value="design_04">design_04</option>
+                  <option value="design_05">design_05</option>
+                </select>
+                {errors.design_code && <p className="mt-1 text-xs text-error-600">{errors.design_code}</p>}
+                <p className="mt-1 text-xs text-gray-500">Fixed securely to the corresponding invitation table.</p>
+              </div>
             </div>
             <Input
               label="Production Vercel URL"
