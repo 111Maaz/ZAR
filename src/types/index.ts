@@ -14,7 +14,12 @@ export interface InvitationEvent {
   title: string;
   date?: string;
   time?: string;
+  /** Human-readable event venue, separate from the wedding's main venue. */
+  venue_name?: string;
+  /** Street/locality/address for this particular event. */
   location?: string;
+  city?: string;
+  maps_url?: string;
   description?: string;
 }
 
@@ -33,6 +38,14 @@ export interface SocialLinks {
   youtube?: string;
   website?: string;
   [key: string]: string | undefined;
+}
+
+export interface InvitationContact {
+  name?: string;
+  /** Store the number in international format, e.g. 919876543210. */
+  phone?: string;
+  /** Derived by the dashboard; the public design can use this directly. */
+  whatsapp_url?: string;
 }
 
 export interface DesignInvitationContent {
@@ -62,6 +75,7 @@ export interface DesignInvitationContent {
   events?: InvitationEvent[];
   gallery?: GalleryItem[];
   social_links?: SocialLinks;
+  contacts?: InvitationContact[];
   qr_text?: string | null;
 }
 
@@ -87,6 +101,7 @@ export interface DesignSpecificInvitation {
   gallery?: GalleryItem[] | null;
   social_links?: SocialLinks | null;
   qr_text?: string | null;
+  invitation_data?: DesignInvitationContent | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Calendar, Users, Link2, Image, PartyPopper, MessageSquare, QrCode, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, X, Calendar, Users, Link2, Image, PartyPopper, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { isSupportedDesignCode } from '@/lib/designMapping';
 import { createInvitation } from '@/services/invitationService';
@@ -19,22 +19,25 @@ import type {
   InvitationStatus,
   InvitationEvent,
   GalleryItem,
-  SocialLinks,
+  InvitationContact,
   DesignInvitationContent,
 } from '@/types';
 
-const SOCIAL_KEYS: { key: keyof SocialLinks; label: string; placeholder: string }[] = [
-  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
-  { key: 'whatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/...' },
-  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
-  { key: 'twitter', label: 'Twitter / X', placeholder: 'https://twitter.com/...' },
-  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@...' },
-  { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@...' },
-  { key: 'website', label: 'Website', placeholder: 'https://...' },
-];
-
 const uid = () => Math.random().toString(36).slice(2, 10);
 const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const toWhatsAppUrl = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  return digits ? `https://wa.me/${digits}` : undefined;
+};
+const OPENING_PRESETS = [
+  { value: '', label: 'No religious opening' },
+  { value: 'ॐ श्री गणेशाय नमः', label: 'Hindu — ॐ श्री गणेशाय नमः' },
+  { value: 'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ', label: 'Islam — بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ' },
+  { value: 'ੴ ਸਤਿ ਨਾਮੁ', label: 'Sikh — ੴ ਸਤਿ ਨਾਮੁ' },
+  { value: 'Praise be to God', label: 'Christian — Praise be to God' },
+  { value: 'Jai Jinendra', label: 'Jain — Jai Jinendra' },
+  { value: 'custom', label: 'Custom opening…' },
+];
 
 export function InvitationCreatePage() {
   const navigate = useNavigate();
@@ -84,7 +87,7 @@ export function InvitationCreatePage() {
     qr_text: string;
     events: InvitationEvent[];
     gallery: GalleryItem[];
-    socials: SocialLinks;
+    contacts: InvitationContact[];
   }>({
     shop_id: ownerShopId ?? '',
     design_id: '',
@@ -119,7 +122,7 @@ export function InvitationCreatePage() {
     qr_text: '',
     events: [],
     gallery: [],
-    socials: {},
+    contacts: [{ name: '', phone: '' }, { name: '', phone: '' }],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [slugCustomized, setSlugCustomized] = useState(false);
@@ -179,11 +182,11 @@ export function InvitationCreatePage() {
     setErrors((p) => ({ ...p, [key as string]: '' }));
   };
 
-  const updateSocial = (key: keyof SocialLinks, value: string) => {
-    setForm((p) => ({ ...p, socials: { ...p.socials, [key]: value || undefined } }));
+  const updateContact = (index: number, patch: Partial<InvitationContact>) => {
+    update('contacts', form.contacts.map((contact, current) => current === index ? { ...contact, ...patch } : contact));
   };
 
-  const addEvent = () => update('events', [...form.events, { id: uid(), title: '', date: '', time: '', location: '' }]);
+  const addEvent = () => update('events', [...form.events, { id: uid(), title: '', date: '', time: '', venue_name: '', location: '', city: '', maps_url: '' }]);
   const removeEvent = (id: string) => update('events', form.events.filter((e) => e.id !== id));
   const updateEvent = (id: string, patch: Partial<InvitationEvent>) =>
     update(
@@ -247,9 +250,13 @@ export function InvitationCreatePage() {
         events: form.events.map(({ id: _id, ...rest }) => rest),
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         gallery: form.gallery.map(({ id: _id, ...rest }) => rest),
-        social_links: Object.fromEntries(
-          Object.entries(form.socials).filter(([, v]) => v && v.trim())
-        ) as SocialLinks,
+        contacts: form.contacts
+          .map((contact) => {
+            const name = contact.name?.trim() || '';
+            const phone = contact.phone?.trim() || '';
+            return name || phone ? { name: name || undefined, phone: phone || undefined, whatsapp_url: toWhatsAppUrl(phone) } : null;
+          })
+          .filter((contact) => contact !== null) as InvitationContact[],
         qr_text: form.qr_text.trim() || null,
       };
 
@@ -397,7 +404,7 @@ export function InvitationCreatePage() {
               placeholder="e.g. john-and-jane-2026"
               hint="Used in the public invitation URL. Lowercase letters, numbers, hyphens only."
             />
-            <div className="input-base flex flex-col justify-center bg-gray-50 text-sm text-gray-600"><span className="font-medium text-gray-700">Invitation code</span><span className="mt-1 text-xs">Generated securely when the invitation is created.</span></div>
+            <div className="input-base flex flex-col justify-center bg-gray-50 text-sm text-gray-600"><span className="font-medium text-gray-700">───※ ·❆· ※───</span><span className="mt-1 text-xs">༺❀༻༺❀༻༺❀༻༺❀༻༺❀༻</span></div>
             <Input label="Invitation Start" icon={Calendar} type="datetime-local" value={form.start_date} onChange={(e) => update('start_date', e.target.value)} />
             <Input label="Invitation End" icon={Calendar} type="datetime-local" value={form.end_date} onChange={(e) => update('end_date', e.target.value)} />
             <Input label="Wedding Date" icon={Calendar} type="date" value={form.wedding_date} onChange={(e) => update('wedding_date', e.target.value)} />
@@ -444,24 +451,29 @@ export function InvitationCreatePage() {
         <Card className="mb-4">
           <CardHeader title="Invitation Text & Venue" subtitle="Main content and venue details." />
           <div className="mt-4 space-y-4">
-            <Textarea label="Invocation / Blessing" value={form.invocation} onChange={(e) => update('invocation', e.target.value)} rows={4} placeholder="With the blessings of..." />
-            <Textarea label="Relatives" value={form.relatives} onChange={(e) => update('relatives', e.target.value)} rows={2} placeholder="Relatives and family acknowledgements" />
+            <div>
+              <label className="label-base">Religious Opening</label>
+              <select
+                className="input-base"
+                value={OPENING_PRESETS.some((item) => item.value === form.invocation) ? form.invocation : 'custom'}
+                onChange={(event) => update('invocation', event.target.value === 'custom' ? form.invocation : event.target.value)}
+              >
+                {OPENING_PRESETS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select>
+            </div>
+            <Textarea label="Opening Text" value={form.invocation} onChange={(e) => update('invocation', e.target.value)} rows={3} placeholder="Choose a preset above or enter custom text" />
+            <Textarea label="INVITER" value={form.relatives} onChange={(e) => update('relatives', e.target.value)} rows={2} placeholder="Relatives and family acknowledgements" />
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Venue Name" value={form.venue_name} onChange={(e) => update('venue_name', e.target.value)} placeholder="Venue name" />
-              <Input label="Venue Image URL" value={form.venue_image_url} onChange={(e) => update('venue_image_url', e.target.value)} placeholder="https://..." />
+              {/* <Input label="Venue Image URL" value={form.venue_image_url} onChange={(e) => update('venue_image_url', e.target.value)} placeholder="https://..." /> */}
               <Input label="Venue Address" value={form.venue_address} onChange={(e) => update('venue_address', e.target.value)} placeholder="Full venue address" />
               <Input label="City" value={form.city} onChange={(e) => update('city', e.target.value)} placeholder="City" />
               <Input label="Maps URL" value={form.maps_url} onChange={(e) => update('maps_url', e.target.value)} placeholder="https://maps..." />
               <Input label="Music URL" value={form.music_url} onChange={(e) => update('music_url', e.target.value)} placeholder="https://..." />
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.music_enabled} onChange={(e) => update('music_enabled', e.target.checked)} /> Enable invitation music</label>
-            <Input label="Legacy / Full Venue Text" value={form.venue} onChange={(e) => update('venue', e.target.value)} placeholder="Optional design-specific venue text" />
-            <div>
-              <label className="label-base flex items-center gap-1.5">
-                <QrCode className="h-4 w-4 text-gray-400" /> QR Text / RSVP Link
-              </label>
-              <Textarea value={form.qr_text} onChange={(e) => update('qr_text', e.target.value)} rows={2} placeholder="Text encoded in the QR code, e.g. an RSVP URL." />
-            </div>
+            {/* <Input label="Legacy / Full Venue Text" value={form.venue} onChange={(e) => update('venue', e.target.value)} placeholder="Optional design-specific venue text" /> */}
+            <p className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-xs text-brand-800">The QR code is generated after creation from the exact public invitation URL.</p>
           </div>
         </Card>
 
@@ -492,9 +504,12 @@ export function InvitationCreatePage() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input label="Title" value={ev.title} onChange={(e) => updateEvent(ev.id!, { title: e.target.value })} placeholder="e.g. Reception" />
-                    <Input label="Location" value={ev.location || ''} onChange={(e) => updateEvent(ev.id!, { location: e.target.value })} placeholder="Venue name" />
+                    <Input label="Event Venue" value={ev.venue_name || ''} onChange={(e) => updateEvent(ev.id!, { venue_name: e.target.value })} placeholder="e.g. Falak Palace" />
                     <Input label="Date" type="date" value={ev.date || ''} onChange={(e) => updateEvent(ev.id!, { date: e.target.value })} />
                     <Input label="Time" type="time" value={ev.time || ''} onChange={(e) => updateEvent(ev.id!, { time: e.target.value })} />
+                    <Input label="Location Address" value={ev.location || ''} onChange={(e) => updateEvent(ev.id!, { location: e.target.value })} placeholder="e.g. Balapur Road" />
+                    <Input label="Location City" value={ev.city || ''} onChange={(e) => updateEvent(ev.id!, { city: e.target.value })} placeholder="e.g. Hyderabad" />
+                    <Input label="Location Maps URL" value={ev.maps_url || ''} onChange={(e) => updateEvent(ev.id!, { maps_url: e.target.value })} placeholder="https://maps.google.com/..." />
                   </div>
                 </div>
               ))
@@ -535,18 +550,16 @@ export function InvitationCreatePage() {
           </div>
         </Card>
 
-        {/* Social Links */}
+        {/* Contacts */}
         <Card className="mb-4">
-          <CardHeader title="Social Links & Hashtags" subtitle="Link social profiles or provide a hashtag the guests can use." icon={MessageSquare} />
+          <CardHeader title="Contact Details" subtitle="Add up to two optional contacts. WhatsApp links are generated automatically from the phone numbers." icon={MessageSquare} />
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {SOCIAL_KEYS.map((s) => (
-              <Input
-                key={s.key}
-                label={s.label}
-                value={form.socials[s.key] || ''}
-                onChange={(e) => updateSocial(s.key, e.target.value)}
-                placeholder={s.placeholder}
-              />
+            {form.contacts.map((contact, index) => (
+              <div key={index} className="space-y-3 rounded-lg border border-gray-200 p-4">
+                <p className="text-sm font-semibold text-gray-800">Contact {index + 1} <span className="font-normal text-gray-400">(optional)</span></p>
+                <Input label="Name" value={contact.name || ''} onChange={(e) => updateContact(index, { name: e.target.value })} placeholder="e.g. Wajid" />
+                <Input label="Phone / WhatsApp" type="tel" value={contact.phone || ''} onChange={(e) => updateContact(index, { phone: e.target.value })} placeholder="e.g. 919876543210" hint="Include country code; the WhatsApp link is generated automatically." />
+              </div>
             ))}
           </div>
         </Card>
@@ -562,7 +575,7 @@ export function InvitationCreatePage() {
             <SummaryRow label="Status" value={<StatusBadge status={form.status} />} />
             <SummaryRow label="Events" value={`${form.events.length} event(s)`} />
             <SummaryRow label="Gallery" value={`${form.gallery.length} photo(s)`} />
-            <SummaryRow label="Socials" value={`${Object.values(form.socials).filter(Boolean).length} link(s)`} />
+            <SummaryRow label="Contacts" value={`${form.contacts.filter((contact) => contact.name || contact.phone).length} contact(s)`} />
           </div>
         </Card>
 

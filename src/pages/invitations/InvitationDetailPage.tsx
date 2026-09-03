@@ -16,7 +16,6 @@ import {
   Image,
   PartyPopper,
   MessageSquare,
-  QrCode,
   Plus,
   AlertTriangle,
 } from 'lucide-react';
@@ -31,19 +30,23 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ErrorState, LoadingState } from '@/components/ui/States';
-import type { Invitation, DesignSpecificInvitation, InvitationStatus, InvitationEvent, GalleryItem, SocialLinks, DesignInvitationContent } from '@/types';
-
-const SOCIAL_KEYS: { key: keyof SocialLinks; label: string; placeholder: string }[] = [
-  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
-  { key: 'whatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/...' },
-  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
-  { key: 'twitter', label: 'Twitter / X', placeholder: 'https://twitter.com/...' },
-  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@...' },
-  { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@...' },
-  { key: 'website', label: 'Website', placeholder: 'https://...' },
-];
+import type { Invitation, DesignSpecificInvitation, InvitationStatus, InvitationEvent, GalleryItem, InvitationContact, DesignInvitationContent } from '@/types';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const toWhatsAppUrl = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  return digits ? `https://wa.me/${digits}` : undefined;
+};
+
+const OPENING_PRESETS = [
+  { value: '', label: 'No religious opening' },
+  { value: 'ॐ श्री गणेशाय नमः', label: 'Hindu — ॐ श्री गणेशाय नमः' },
+  { value: 'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ', label: 'Islam — بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ' },
+  { value: 'ੴ ਸਤਿ ਨਾਮੁ', label: 'Sikh — ੴ ਸਤਿ ਨਾਮੁ' },
+  { value: 'Praise be to God', label: 'Christian — Praise be to God' },
+  { value: 'Jai Jinendra', label: 'Jain — Jai Jinendra' },
+  { value: 'custom', label: 'Custom opening…' },
+];
 
 export function InvitationDetailPage() {
   const { invitationId } = useParams<{ invitationId: string }>();
@@ -74,15 +77,25 @@ export function InvitationDetailPage() {
     bride_qualification: string;
     groom_occupation: string;
     bride_occupation: string;
+    groom_parents: string;
+    bride_parents: string;
+    relatives: string;
     wedding_date: string;
     start_time: string;
     end_time: string;
     invocation: string;
     venue: string;
+    venue_name: string;
+    venue_address: string;
+    city: string;
+    maps_url: string;
+    venue_image_url: string;
+    music_url: string;
+    music_enabled: boolean;
     qr_text: string;
     events: InvitationEvent[];
     gallery: GalleryItem[];
-    socials: SocialLinks;
+    contacts: InvitationContact[];
   }>({
     groom_name: '',
     bride_name: '',
@@ -96,43 +109,69 @@ export function InvitationDetailPage() {
     bride_qualification: '',
     groom_occupation: '',
     bride_occupation: '',
+    groom_parents: '',
+    bride_parents: '',
+    relatives: '',
     wedding_date: '',
     start_time: '',
     end_time: '',
     invocation: '',
     venue: '',
+    venue_name: '',
+    venue_address: '',
+    city: '',
+    maps_url: '',
+    venue_image_url: '',
+    music_url: '',
+    music_enabled: false,
     qr_text: '',
     events: [],
     gallery: [],
-    socials: {},
+    contacts: [{ name: '', phone: '' }, { name: '', phone: '' }],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const canEdit = isAdmin || (!!profile?.shop_id && invitation?.shop_id === profile.shop_id);
 
   const hydrateForm = useCallback((inv: Invitation, dc: DesignSpecificInvitation | null) => {
+    const stored = dc?.invitation_data ?? {};
     setForm({
-      groom_name: inv.groom_name ?? dc?.groom_name ?? '',
-      bride_name: inv.bride_name ?? dc?.bride_name ?? '',
+      groom_name: inv.groom_name ?? dc?.groom_name ?? stored.groom_name ?? '',
+      bride_name: inv.bride_name ?? dc?.bride_name ?? stored.bride_name ?? '',
       slug: inv.slug,
       invitation_code: inv.invitation_code,
       start_date: inv.start_date?.slice(0, 10) ?? '',
       end_date: inv.end_date?.slice(0, 10) ?? '',
-      groom_photo_url: dc?.groom_photo_url ?? '',
-      bride_photo_url: dc?.bride_photo_url ?? '',
-      groom_qualification: dc?.groom_qualification ?? '',
-      bride_qualification: dc?.bride_qualification ?? '',
-      groom_occupation: dc?.groom_occupation ?? '',
-      bride_occupation: dc?.bride_occupation ?? '',
+      groom_photo_url: dc?.groom_photo_url ?? stored.groom_photo_url ?? '',
+      bride_photo_url: dc?.bride_photo_url ?? stored.bride_photo_url ?? '',
+      groom_qualification: dc?.groom_qualification ?? stored.groom_qualification ?? '',
+      bride_qualification: dc?.bride_qualification ?? stored.bride_qualification ?? '',
+      groom_occupation: dc?.groom_occupation ?? stored.groom_occupation ?? '',
+      bride_occupation: dc?.bride_occupation ?? stored.bride_occupation ?? '',
+      groom_parents: stored.groom_parents ?? '',
+      bride_parents: stored.bride_parents ?? '',
+      relatives: stored.relatives ?? '',
       wedding_date: dc?.wedding_date ? new Date(dc.wedding_date).toISOString().slice(0, 10) : '',
-      start_time: dc?.start_time ?? '',
-      end_time: dc?.end_time ?? '',
-      invocation: dc?.invocation ?? '',
-      venue: dc?.venue ?? '',
-      qr_text: dc?.qr_text ?? '',
+      start_time: dc?.start_time ?? stored.start_time ?? '',
+      end_time: dc?.end_time ?? stored.end_time ?? '',
+      invocation: dc?.invocation ?? stored.invocation ?? '',
+      venue: dc?.venue ?? stored.venue ?? '',
+      venue_name: stored.venue_name ?? '',
+      venue_address: stored.venue_address ?? '',
+      city: stored.city ?? '',
+      maps_url: stored.maps_url ?? '',
+      venue_image_url: stored.venue_image_url ?? '',
+      music_url: stored.music_url ?? '',
+      music_enabled: stored.music_enabled ?? false,
+      qr_text: dc?.qr_text ?? stored.qr_text ?? '',
       events: (dc?.events as InvitationEvent[] | null)?.map((e, i) => ({ ...e, id: e.id ?? uid() + String(i) })) ?? [],
       gallery: (dc?.gallery as GalleryItem[] | null)?.map((g, i) => ({ ...g, id: g.id ?? uid() + String(i) })) ?? [],
-      socials: (dc?.social_links as SocialLinks | null) ?? {},
+      contacts: (() => {
+        const contacts = stored.contacts;
+        return Array.isArray(contacts)
+          ? [...contacts.slice(0, 2), ...Array.from({ length: Math.max(0, 2 - contacts.length) }, () => ({ name: '', phone: '' }))]
+          : [{ name: '', phone: '' }, { name: '', phone: '' }];
+      })(),
     });
   }, []);
 
@@ -166,11 +205,11 @@ export function InvitationDetailPage() {
     setErrors((p) => ({ ...p, [key as string]: '' }));
   };
 
-  const updateSocial = (key: keyof SocialLinks, value: string) => {
-    setForm((p) => ({ ...p, socials: { ...p.socials, [key]: value || undefined } }));
+  const updateContact = (index: number, patch: Partial<InvitationContact>) => {
+    updateForm('contacts', form.contacts.map((contact, current) => current === index ? { ...contact, ...patch } : contact));
   };
 
-  const addEvent = () => updateForm('events', [...form.events, { id: uid(), title: '', date: '', time: '', location: '' }]);
+  const addEvent = () => updateForm('events', [...form.events, { id: uid(), title: '', date: '', time: '', venue_name: '', location: '', city: '', maps_url: '' }]);
   const removeEvent = (id: string) => updateForm('events', form.events.filter((e) => e.id !== id));
   const updateEvent = (id: string, patch: Partial<InvitationEvent>) =>
     updateForm(
@@ -213,8 +252,18 @@ export function InvitationDetailPage() {
         bride_qualification: form.bride_qualification.trim() || null,
         groom_occupation: form.groom_occupation.trim() || null,
         bride_occupation: form.bride_occupation.trim() || null,
+        groom_parents: form.groom_parents.trim() || null,
+        bride_parents: form.bride_parents.trim() || null,
+        relatives: form.relatives.trim() || null,
         invocation: form.invocation.trim() || null,
         venue: form.venue.trim() || null,
+        venue_name: form.venue_name.trim() || null,
+        venue_address: form.venue_address.trim() || null,
+        city: form.city.trim() || null,
+        maps_url: form.maps_url.trim() || null,
+        venue_image_url: form.venue_image_url.trim() || null,
+        music_url: form.music_url.trim() || null,
+        music_enabled: form.music_enabled,
         wedding_date: form.wedding_date || null,
         start_time: form.start_time.trim() || null,
         end_time: form.end_time.trim() || null,
@@ -223,9 +272,13 @@ export function InvitationDetailPage() {
         events: form.events.map(({ id: _id, ...rest }) => rest),
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         gallery: form.gallery.map(({ id: _id, ...rest }) => rest),
-        social_links: Object.fromEntries(
-          Object.entries(form.socials).filter(([, v]) => v && v.trim())
-        ) as SocialLinks,
+        contacts: form.contacts
+          .map((contact) => {
+            const name = contact.name?.trim() || '';
+            const phone = contact.phone?.trim() || '';
+            return name || phone ? { name: name || undefined, phone: phone || undefined, whatsapp_url: toWhatsAppUrl(phone) } : null;
+          })
+          .filter((contact) => contact !== null) as InvitationContact[],
         qr_text: form.qr_text.trim() || null,
       };
 
@@ -271,6 +324,7 @@ export function InvitationDetailPage() {
   const coupleName = [invitation.groom_name, invitation.bride_name].filter(Boolean).join(' & ') || 'Unnamed invitation';
   const designCode = invitation.design?.design_code ?? '';
   const currentStatus = invitation.status;
+  const publicUrl = invitation.public_url || `${invitation.design?.production_url?.replace(/\/+$/, '') || ''}/${invitation.slug}`;
 
   return (
     <div>
@@ -360,6 +414,15 @@ export function InvitationDetailPage() {
               <DetailRow icon={Hash} label="Slug" mono value={editing ? (
                 <Input className="w-full" value={form.slug} onChange={(e) => updateForm('slug', e.target.value.toLowerCase())} error={errors.slug} />
               ) : invitation.slug} />
+              <DetailRow
+                icon={ExternalLink}
+                label="Public Invitation Link"
+                value={publicUrl ? (
+                  <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700">
+                    <ExternalLink className="h-3.5 w-3.5" /> {publicUrl}
+                  </a>
+                ) : 'Not available'}
+              />
               <DetailRow icon={Hash} label="Invitation Code" mono value={invitation.invitation_code} />
               <DetailRow
                 icon={Calendar}
@@ -454,19 +517,21 @@ export function InvitationDetailPage() {
         {editing && designCodeSupported && (
           <>
             <Card className="mt-4">
-              <CardHeader title="Couple Details" subtitle="Photos, qualification, occupation." icon={Users} />
+              <CardHeader title="Couple Details" subtitle="Photos, qualification, occupation, and parents." icon={Users} />
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="space-y-4 rounded-lg border border-brand-100 bg-brand-50/30 p-4">
                   <h4 className="text-sm font-semibold text-brand-700">Groom</h4>
                   <Input label="Photo URL" icon={Image} value={form.groom_photo_url} onChange={(e) => updateForm('groom_photo_url', e.target.value)} />
                   <Input label="Qualification" value={form.groom_qualification} onChange={(e) => updateForm('groom_qualification', e.target.value)} />
                   <Input label="Occupation" value={form.groom_occupation} onChange={(e) => updateForm('groom_occupation', e.target.value)} />
+                  <Input label="Parents" value={form.groom_parents} onChange={(e) => updateForm('groom_parents', e.target.value)} placeholder="Parents' names" />
                 </div>
                 <div className="space-y-4 rounded-lg border border-pink-100 bg-pink-50/30 p-4">
                   <h4 className="text-sm font-semibold text-pink-700">Bride</h4>
                   <Input label="Photo URL" icon={Image} value={form.bride_photo_url} onChange={(e) => updateForm('bride_photo_url', e.target.value)} />
                   <Input label="Qualification" value={form.bride_qualification} onChange={(e) => updateForm('bride_qualification', e.target.value)} />
                   <Input label="Occupation" value={form.bride_occupation} onChange={(e) => updateForm('bride_occupation', e.target.value)} />
+                  <Input label="Parents" value={form.bride_parents} onChange={(e) => updateForm('bride_parents', e.target.value)} placeholder="Parents' names" />
                 </div>
               </div>
             </Card>
@@ -474,12 +539,43 @@ export function InvitationDetailPage() {
             <Card className="mt-4">
               <CardHeader title="Invitation Text & Venue" />
               <div className="mt-4 space-y-4">
-                <Textarea label="Invocation / Blessing" rows={4} value={form.invocation} onChange={(e) => updateForm('invocation', e.target.value)} />
-                <Input label="Venue" value={form.venue} onChange={(e) => updateForm('venue', e.target.value)} />
                 <div>
-                  <label className="label-base flex items-center gap-1.5"><QrCode className="h-4 w-4 text-gray-400" /> QR Text / RSVP Link</label>
-                  <Textarea rows={2} value={form.qr_text} onChange={(e) => updateForm('qr_text', e.target.value)} />
+                  <label className="label-base">Religious Opening</label>
+                  <select
+                    className="input-base"
+                    value={OPENING_PRESETS.some((item) => item.value === form.invocation) ? form.invocation : 'custom'}
+                    onChange={(event) => updateForm('invocation', event.target.value === 'custom' ? form.invocation : event.target.value)}
+                  >
+                    {OPENING_PRESETS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  </select>
                 </div>
+                <Textarea
+                  label="Opening Text"
+                  rows={3}
+                  value={form.invocation}
+                  onChange={(e) => updateForm('invocation', e.target.value)}
+                />
+                <p className="-mt-2 text-xs text-gray-500">Choose a preset above or enter a custom religious opening.</p>
+                <Textarea
+                  label="INVITER"
+                  rows={2}
+                  value={form.relatives}
+                  onChange={(e) => updateForm('relatives', e.target.value)}
+                  placeholder="Relatives and family acknowledgements"
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input label="Venue Name" value={form.venue_name} onChange={(e) => updateForm('venue_name', e.target.value)} placeholder="Venue name" />
+                  {/* <Input label="Venue Image URL" value={form.venue_image_url} onChange={(e) => updateForm('venue_image_url', e.target.value)} placeholder="https://..." /> */}
+                  <Input label="Venue Address" value={form.venue_address} onChange={(e) => updateForm('venue_address', e.target.value)} placeholder="Full venue address" />
+                  <Input label="City" value={form.city} onChange={(e) => updateForm('city', e.target.value)} placeholder="City" />
+                  <Input label="Maps URL" value={form.maps_url} onChange={(e) => updateForm('maps_url', e.target.value)} placeholder="https://maps..." />
+                  <Input label="Music URL" value={form.music_url} onChange={(e) => updateForm('music_url', e.target.value)} placeholder="https://..." />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={form.music_enabled} onChange={(e) => updateForm('music_enabled', e.target.checked)} />
+                  Enable invitation music
+                </label>
+                {/* <Input label="Legacy / Full Venue Text" value={form.venue} onChange={(e) => updateForm('venue', e.target.value)} placeholder="Optional design-specific venue text" /> */}
               </div>
             </Card>
 
@@ -503,9 +599,12 @@ export function InvitationDetailPage() {
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Input label="Title" value={ev.title} onChange={(e) => updateEvent(ev.id!, { title: e.target.value })} />
-                        <Input label="Location" value={ev.location || ''} onChange={(e) => updateEvent(ev.id!, { location: e.target.value })} />
+                        <Input label="Event Venue" value={ev.venue_name || ''} onChange={(e) => updateEvent(ev.id!, { venue_name: e.target.value })} placeholder="e.g. Falak Palace" />
                         <Input label="Date" type="date" value={ev.date || ''} onChange={(e) => updateEvent(ev.id!, { date: e.target.value })} />
                         <Input label="Time" type="time" value={ev.time || ''} onChange={(e) => updateEvent(ev.id!, { time: e.target.value })} />
+                        <Input label="Location Address" value={ev.location || ''} onChange={(e) => updateEvent(ev.id!, { location: e.target.value })} placeholder="e.g. Balapur Road" />
+                        <Input label="Location City" value={ev.city || ''} onChange={(e) => updateEvent(ev.id!, { city: e.target.value })} placeholder="e.g. Hyderabad" />
+                        <Input label="Location Maps URL" value={ev.maps_url || ''} onChange={(e) => updateEvent(ev.id!, { maps_url: e.target.value })} placeholder="https://maps.google.com/..." />
                       </div>
                     </div>
                   ))
@@ -540,16 +639,14 @@ export function InvitationDetailPage() {
             </Card>
 
             <Card className="mt-4">
-              <CardHeader title="Social Links" icon={MessageSquare} />
+              <CardHeader title="Contact Details" subtitle="Two optional contacts. WhatsApp links are generated automatically from their phone numbers." icon={MessageSquare} />
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                {SOCIAL_KEYS.map((s) => (
-                  <Input
-                    key={s.key}
-                    label={s.label}
-                    value={form.socials[s.key] || ''}
-                    onChange={(e) => updateSocial(s.key, e.target.value)}
-                    placeholder={s.placeholder}
-                  />
+                {form.contacts.map((contact, index) => (
+                  <div key={index} className="space-y-3 rounded-lg border border-gray-200 p-4">
+                    <p className="text-sm font-semibold text-gray-800">Contact {index + 1} <span className="font-normal text-gray-400">(optional)</span></p>
+                    <Input label="Name" value={contact.name || ''} onChange={(e) => updateContact(index, { name: e.target.value })} placeholder="e.g. Wajid" />
+                    <Input label="Phone / WhatsApp" type="tel" value={contact.phone || ''} onChange={(e) => updateContact(index, { phone: e.target.value })} placeholder="e.g. 919876543210" hint="Include country code; the WhatsApp link is generated automatically." />
+                  </div>
                 ))}
               </div>
             </Card>

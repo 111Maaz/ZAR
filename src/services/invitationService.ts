@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveDesignTarget } from '@/lib/designMapping';
+import { isSupportedDesignCode, resolveDesignTarget } from '@/lib/designMapping';
 import type {
   CreateInvitationInput,
   UpdateInvitationInput,
@@ -10,6 +10,43 @@ import type {
 export interface InvitationWithContent {
   invitation: Invitation;
   designContent: DesignSpecificInvitation | null;
+}
+
+// Older design tables have suffixed columns (for example `events_01`), while
+// the shared creation/update RPCs persist the complete design payload in
+// `invitation_data`. Normalize that payload here so every design gets the same
+// edit experience without letting a client choose a table or suffix.
+function normalizeDesignContent(row: unknown): DesignSpecificInvitation | null {
+  if (!row || typeof row !== 'object') return null;
+
+  const raw = row as Record<string, unknown>;
+  const payload = (
+    raw.invitation_data && typeof raw.invitation_data === 'object'
+      ? raw.invitation_data
+      : {}
+  ) as Record<string, unknown>;
+
+  return {
+    ...raw,
+    invitation_data: payload,
+    groom_name: payload.groom_name ?? raw.groom_name,
+    bride_name: payload.bride_name ?? raw.bride_name,
+    groom_photo_url: payload.groom_photo_url ?? raw.groom_photo_url,
+    bride_photo_url: payload.bride_photo_url ?? raw.bride_photo_url,
+    groom_qualification: payload.groom_qualification ?? raw.groom_qualification,
+    bride_qualification: payload.bride_qualification ?? raw.bride_qualification,
+    groom_occupation: payload.groom_occupation ?? raw.groom_occupation,
+    bride_occupation: payload.bride_occupation ?? raw.bride_occupation,
+    invocation: payload.invocation ?? raw.invocation,
+    venue: payload.venue ?? raw.venue,
+    wedding_date: payload.wedding_date ?? raw.wedding_date,
+    start_time: payload.start_time ?? raw.start_time,
+    end_time: payload.end_time ?? raw.end_time,
+    events: payload.events ?? raw.events,
+    gallery: payload.gallery ?? raw.gallery,
+    social_links: payload.social_links ?? raw.social_links,
+    qr_text: payload.qr_text ?? raw.qr_text,
+  } as unknown as DesignSpecificInvitation;
 }
 
 export async function createInvitation(input: CreateInvitationInput): Promise<InvitationWithContent> {
@@ -29,7 +66,7 @@ export async function createInvitation(input: CreateInvitationInput): Promise<In
   const { data: designContent, error: detailError } = await supabase
     .from(target.table).select('*').eq('central_invitation_id', invitation.id).single();
   if (detailError) throw new Error(detailError.message);
-  return { invitation, designContent: designContent as DesignSpecificInvitation };
+  return { invitation, designContent: normalizeDesignContent(designContent) };
 }
 
 export async function getInvitationWithContent(
@@ -61,7 +98,7 @@ export async function getInvitationWithContent(
 
     return {
       invitation,
-      designContent: (designData as DesignSpecificInvitation) ?? null,
+      designContent: normalizeDesignContent(designData),
     };
   } catch {
     return { invitation, designContent: null };
@@ -73,59 +110,19 @@ export async function updateInvitation(
   designCode: string,
   input: UpdateInvitationInput
 ): Promise<void> {
-  const target = resolveDesignTarget(designCode);
-
-  const { error: centralError } = await supabase
-    .from('invitations')
-    .update({
-      ...(input.slug !== undefined && { slug: input.slug }),
-      ...(input.invitation_code !== undefined && { invitation_code: input.invitation_code }),
-      ...(input.groom_name !== undefined && { groom_name: input.groom_name }),
-      ...(input.bride_name !== undefined && { bride_name: input.bride_name }),
-      ...(input.start_date !== undefined && { start_date: input.start_date }),
-      ...(input.end_date !== undefined && { end_date: input.end_date }),
-      ...(input.status !== undefined && { status: input.status }),
-    })
-    .eq('id', invitationId);
-
-  if (centralError) throw new Error(centralError.message);
-
-  const content = input.content ?? {};
-  const hasContent = Object.keys(content).length > 0;
-  const hasIdentifiers = input.slug !== undefined || input.invitation_code !== undefined;
-
-  if (hasContent || hasIdentifiers) {
-    const designPatch: Record<string, unknown> = {};
-
-    if (input.slug !== undefined) designPatch.slug = input.slug;
-    if (input.invitation_code !== undefined) designPatch.invitation_code = input.invitation_code;
-
-    if (content.groom_name !== undefined) designPatch.groom_name = content.groom_name;
-    if (content.bride_name !== undefined) designPatch.bride_name = content.bride_name;
-    if (content.groom_photo_url !== undefined) designPatch.groom_photo_url = content.groom_photo_url;
-    if (content.bride_photo_url !== undefined) designPatch.bride_photo_url = content.bride_photo_url;
-    if (content.groom_qualification !== undefined) designPatch.groom_qualification = content.groom_qualification;
-    if (content.bride_qualification !== undefined) designPatch.bride_qualification = content.bride_qualification;
-    if (content.groom_occupation !== undefined) designPatch.groom_occupation = content.groom_occupation;
-    if (content.bride_occupation !== undefined) designPatch.bride_occupation = content.bride_occupation;
-    if (content.invocation !== undefined) designPatch.invocation = content.invocation;
-    if (content.venue !== undefined) designPatch.venue = content.venue;
-    if (content.wedding_date !== undefined) designPatch.wedding_date = content.wedding_date;
-    if (content.start_time !== undefined) designPatch.start_time = content.start_time;
-    if (content.end_time !== undefined) designPatch.end_time = content.end_time;
-    if (content.events !== undefined) designPatch.events = content.events;
-    if (content.gallery !== undefined) designPatch.gallery = content.gallery;
-    if (content.social_links !== undefined) designPatch.social_links = content.social_links;
-    if (content.qr_text !== undefined) designPatch.qr_text = content.qr_text;
-
-    const { error: designError } = await supabase
-      .from(target.table)
-      .update(designPatch)
-      .eq('central_invitation_id', invitationId);
-
-    if (designError) throw new Error(designError.message);
-  }
-
+  // The server resolves the fixed design mapping. Clients never name a table or suffix.
+  if (!isSupportedDesignCode(designCode)) throw new Error('Unsupported design code.');
+  const { error } = await supabase.rpc('update_invitation_content', {
+    p_invitation_id: invitationId,
+    p_slug: input.slug,
+    p_start_date: input.start_date,
+    p_end_date: input.end_date,
+    // Supabase omits `undefined` RPC arguments. Pass null so PostgREST can
+    // resolve the six-argument function when an ordinary edit keeps status.
+    p_status: input.status ?? null,
+    p_content: input.content ?? {},
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function updateInvitationStatus(
@@ -134,5 +131,10 @@ export async function updateInvitationStatus(
   newStatus: import('@/types').InvitationStatus
 ): Promise<void> {
   const designCode = invitation.design?.design_code ?? '';
-  await updateInvitation(invitationId, designCode, { status: newStatus });
+  await updateInvitation(invitationId, designCode, {
+    slug: invitation.slug,
+    start_date: invitation.start_date,
+    end_date: invitation.end_date,
+    status: newStatus,
+  });
 }
