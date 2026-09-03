@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Palette, Search, ExternalLink } from 'lucide-react';
+import { Plus, Palette, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -23,10 +23,12 @@ export function DesignsListPage() {
   useEffect(() => {
     async function loadDesigns() {
       try {
-        const { data, error } = await supabase
-          .from('designs')
-          .select('*')
-          .order('design_code', { ascending: true });
+        // Owners use a database-owned query: their shop is derived from auth.uid(),
+        // never from a client parameter. RLS remains the enforcement boundary.
+        const response = isAdmin
+          ? await supabase.from('designs').select('*').order('design_code', { ascending: true })
+          : await supabase.rpc('get_my_assigned_designs');
+        const { data, error } = response;
         if (error) throw error;
         setDesigns(data as Design[]);
       } catch (err) {
@@ -36,7 +38,7 @@ export function DesignsListPage() {
       }
     }
     loadDesigns();
-  }, []);
+  }, [isAdmin]);
 
   const filtered = designs.filter(
     (d) =>

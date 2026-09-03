@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Store, Palette, Mail, ScrollText, Settings, LogOut, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useIsAdmin } from '@/context/AuthContext';
@@ -20,7 +20,6 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const { user, profile, signOut } = useAuth();
   const isAdmin = useIsAdmin();
-  const location = useLocation();
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 

@@ -20,7 +20,6 @@ export function DesignDetailPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const { toast } = useToast();
   const [design, setDesign] = useState<Design | null>(null);
   const [assignments, setAssignments] = useState<ShopDesignAssignment[]>([]);
   const [loading, setLoading] = useState(true);

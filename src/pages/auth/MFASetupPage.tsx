@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { ShieldCheck, KeyRound, AlertCircle } from 'lucide-react';
 
 export function MFASetupPage() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [qrUrl, setQrUrl] = useState('');

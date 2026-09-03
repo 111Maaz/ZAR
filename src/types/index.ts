@@ -1,8 +1,127 @@
 export type ShopStatus = 'active' | 'disabled';
 export type DesignStatus = 'active' | 'inactive';
 export type AssignmentStatus = 'assigned' | 'restricted';
-export type InvitationStatus = 'draft' | 'active' | 'expired';
+export type InvitationStatus = 'draft' | 'active' | 'expired' | 'archived';
 export type UserRole = 'admin' | 'shop_owner';
+
+export interface DesignMappingEntry {
+  table: string;
+  suffix: string;
+}
+
+export interface InvitationEvent {
+  id?: string;
+  title: string;
+  date?: string;
+  time?: string;
+  location?: string;
+  description?: string;
+}
+
+export interface GalleryItem {
+  id?: string;
+  url: string;
+  caption?: string;
+}
+
+export interface SocialLinks {
+  instagram?: string;
+  whatsapp?: string;
+  facebook?: string;
+  twitter?: string;
+  tiktok?: string;
+  youtube?: string;
+  website?: string;
+  [key: string]: string | undefined;
+}
+
+export interface DesignInvitationContent {
+  groom_parents?: string | null;
+  bride_parents?: string | null;
+  relatives?: string | null;
+  venue_name?: string | null;
+  venue_address?: string | null;
+  city?: string | null;
+  maps_url?: string | null;
+  venue_image_url?: string | null;
+  music_url?: string | null;
+  music_enabled?: boolean;
+  groom_name?: string | null;
+  bride_name?: string | null;
+  groom_photo_url?: string | null;
+  bride_photo_url?: string | null;
+  groom_qualification?: string | null;
+  bride_qualification?: string | null;
+  groom_occupation?: string | null;
+  bride_occupation?: string | null;
+  invocation?: string | null;
+  venue?: string | null;
+  wedding_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  events?: InvitationEvent[];
+  gallery?: GalleryItem[];
+  social_links?: SocialLinks;
+  qr_text?: string | null;
+}
+
+export interface DesignSpecificInvitation {
+  id: string;
+  central_invitation_id: string;
+  slug: string;
+  invitation_code?: string;
+  groom_name?: string | null;
+  bride_name?: string | null;
+  groom_photo_url?: string | null;
+  bride_photo_url?: string | null;
+  groom_qualification?: string | null;
+  bride_qualification?: string | null;
+  groom_occupation?: string | null;
+  bride_occupation?: string | null;
+  invocation?: string | null;
+  venue?: string | null;
+  wedding_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  events?: InvitationEvent[] | null;
+  gallery?: GalleryItem[] | null;
+  social_links?: SocialLinks | null;
+  qr_text?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateInvitationInput {
+  shop_id: string;
+  design_id: string;
+  design_code: string;
+  slug: string;
+  invitation_code?: string;
+  groom_name?: string | null;
+  bride_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  status?: InvitationStatus;
+  content: DesignInvitationContent;
+}
+
+export interface UpdateInvitationInput {
+  slug?: string;
+  invitation_code?: string;
+  groom_name?: string | null;
+  bride_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  status?: InvitationStatus;
+  content?: Partial<DesignInvitationContent>;
+}
+
+export interface CreateShopOwnerInput {
+  email: string;
+  full_name: string;
+  password?: string;
+  shop_id: string;
+}
 
 export interface Shop {
   id: string;
@@ -17,8 +136,6 @@ export interface Shop {
   country: string | null;
   business_contact: string | null;
   status: ShopStatus;
-  supabase_project_url: string | null;
-  supabase_anon_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +146,7 @@ export interface AdminProfile {
   role: UserRole;
   full_name: string;
   shop_id: string | null;
+  access_status?: 'active' | 'disabled';
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +181,9 @@ export interface Invitation {
   bride_name: string | null;
   slug: string;
   invitation_code: string;
+  public_url?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   start_date: string | null;
   end_date: string | null;
   status: InvitationStatus;

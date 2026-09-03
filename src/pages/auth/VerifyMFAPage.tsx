@@ -11,7 +11,6 @@ export function VerifyMFAPage() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [factorId, setFactorId] = useState('');
 
   const email = (location.state as { email?: string })?.email || '';
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';

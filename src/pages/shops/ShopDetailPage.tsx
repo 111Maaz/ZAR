@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Ban, CheckCircle2, Mail, Phone, MapPin, MessageCircle, Building, Plus } from 'lucide-react';
+import { ArrowLeft, Pencil, Ban, CheckCircle2, Mail, Phone, MapPin, MessageCircle, Building, Plus, UserPlus, UserMinus, Shield } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -14,7 +14,8 @@ import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table } from '@/components/ui/Table';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
-import type { Shop, Design, ShopDesignAssignment, Invitation } from '@/types';
+import { createShopOwner, changeUserRole, revokeShopOwnerAccess, listShopOwnerProfiles } from '@/services/userService';
+import type { Shop, Design, ShopDesignAssignment, Invitation, AdminProfile, UserRole } from '@/types';
 
 export function ShopDetailPage() {
   const { shopId } = useParams<{ shopId: string }>();
@@ -26,17 +27,23 @@ export function ShopDetailPage() {
   const [allDesigns, setAllDesigns] = useState<Design[]>([]);
   const [assignments, setAssignments] = useState<ShopDesignAssignment[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [ownerProfiles, setOwnerProfiles] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [disableOpen, setDisableOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [addOwnerOpen, setAddOwnerOpen] = useState(false);
+  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<AdminProfile | null>(null);
+  const [pendingRole, setPendingRole] = useState<UserRole>('shop_owner');
   const [actionLoading, setActionLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!shopId) return;
     try {
-      const [shopRes, designsRes, assignmentsRes, invitationsRes] = await Promise.all([
+      const [shopRes, designsRes, assignmentsRes, invitationsRes, ownersRes] = await Promise.all([
         supabase.from('shops').select('*').eq('id', shopId).maybeSingle(),
         isAdmin ? supabase.from('designs').select('*').order('design_code') : supabase.from('designs').select('*').order('design_code'),
         supabase
@@ -48,6 +55,7 @@ export function ShopDetailPage() {
           .select('*, design:designs(design_name, design_code)')
           .eq('shop_id', shopId)
           .order('created_at', { ascending: false }),
+        isAdmin ? listShopOwnerProfiles(shopId) : Promise.resolve([]),
       ]);
 
       if (shopRes.error) throw shopRes.error;
@@ -60,6 +68,7 @@ export function ShopDetailPage() {
       setAllDesigns((designsRes.data as Design[]) ?? []);
       setAssignments((assignmentsRes.data as ShopDesignAssignment[]) ?? []);
       setInvitations((invitationsRes.data as Invitation[]) ?? []);
+      setOwnerProfiles(ownersRes ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load shop');
     } finally {
@@ -148,6 +157,51 @@ export function ShopDetailPage() {
       toast(err instanceof Error ? err.message : 'Failed to update assignment', 'error');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleRequestRoleChange = (p: AdminProfile, newRole: UserRole) => {
+    setSelectedProfile(p);
+    setPendingRole(newRole);
+    setRoleConfirmOpen(true);
+  };
+
+  const handleConfirmRoleChange = async () => {
+    if (!selectedProfile) return;
+    setActionLoading(true);
+    try {
+      await changeUserRole(selectedProfile.id, selectedProfile.user_id, pendingRole, selectedProfile.role);
+      toast(`Role changed to ${pendingRole}.`, 'success');
+      await loadData();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to change role', 'error');
+    } finally {
+      setActionLoading(false);
+      setRoleConfirmOpen(false);
+      setSelectedProfile(null);
+    }
+  };
+
+  const handleRequestRevoke = (p: AdminProfile) => {
+    setSelectedProfile(p);
+    setRevokeConfirmOpen(true);
+  };
+
+  const handleConfirmRevoke = async () => {
+    if (!selectedProfile || !shop) return;
+    setActionLoading(true);
+    try {
+      await revokeShopOwnerAccess(selectedProfile.id, selectedProfile.user_id, shop.id, {
+        clearShopId: true,
+      });
+      toast('Shop owner access revoked.', 'warning');
+      await loadData();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to revoke access', 'error');
+    } finally {
+      setActionLoading(false);
+      setRevokeConfirmOpen(false);
+      setSelectedProfile(null);
     }
   };
 
@@ -247,14 +301,8 @@ export function ShopDetailPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Database Configuration" />
-          <div className="mt-4 space-y-3">
-            <InfoRow label="Supabase Project URL" value={shop.supabase_project_url || 'Not configured'} />
-            <InfoRow label="Anon Key" value={shop.supabase_anon_key ? 'Configured (hidden)' : 'Not configured'} />
-            <div className="rounded-lg bg-warning-50 border border-warning-200 px-3 py-2 text-xs text-warning-700">
-              Service-role keys are never stored in the dashboard. They must be supplied through secure server-side configuration.
-            </div>
-          </div>
+          <CardHeader title="Shared Platform Access" />
+          <div className="mt-4 rounded-lg bg-brand-50 border border-brand-100 px-3 py-3 text-xs text-brand-800">This shop uses the central ZAR Supabase project. Access is isolated by authentication, shop ownership, design assignments, and database RLS; no per-shop credentials exist.</div>
         </Card>
       </div>
 
@@ -322,6 +370,63 @@ export function ShopDetailPage() {
           />
         )}
       </Card>
+
+      {/* Shop Owner Users (Admin only) */}
+      {isAdmin && (
+        <Card className="mt-6">
+          <CardHeader
+            title="Shop Owner Account"
+            subtitle="The login account created when this shop was added"
+          />
+          <div className="mt-4">
+            {ownerProfiles.length === 0 ? (
+              <EmptyState
+                title="No shop-owner account"
+                description="This shop was created without an owner account. Create the shop again with the owner login details."
+              />
+            ) : (
+              <div className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+                {ownerProfiles.map((p) => (
+                  <div key={p.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                        {(p.full_name || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{p.full_name || 'Unnamed User'}</p>
+                        <p className="text-xs text-gray-500">User ID: <span className="font-mono">{p.user_id.slice(0, 8)}…</span></p>
+                      </div>
+                      <Badge variant={p.role === 'admin' ? 'brand' : 'neutral'}>
+                        {p.role === 'admin' ? 'Administrator' : 'Shop Owner'}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          handleRequestRoleChange(p, p.role === 'admin' ? 'shop_owner' : 'admin')
+                        }
+                      >
+                        <Shield className="h-3.5 w-3.5" />
+                        {p.role === 'admin' ? 'Demote to Owner' : 'Promote to Admin'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => handleRequestRevoke(p)}
+                      >
+                        <UserMinus className="h-3.5 w-3.5" />
+                        Revoke Access
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Disable/Reactivate Modal */}
       <Modal
@@ -393,6 +498,74 @@ export function ShopDetailPage() {
         </div>
       </Modal>
 
+      {/* Role Change Confirmation Modal */}
+      <Modal
+        open={roleConfirmOpen}
+        onClose={() => setRoleConfirmOpen(false)}
+        title={pendingRole === 'admin' ? 'Promote to Administrator' : 'Demote to Shop Owner'}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setRoleConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={pendingRole === 'admin' ? 'danger' : 'primary'}
+              loading={actionLoading}
+              onClick={handleConfirmRoleChange}
+            >
+              Confirm {pendingRole === 'admin' ? 'Promote' : 'Demote'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to change the role of{' '}
+          <strong>{selectedProfile?.full_name || 'this user'}</strong> from{' '}
+          <strong>{selectedProfile?.role}</strong> to{' '}
+          <strong>{pendingRole}</strong>?
+          {pendingRole === 'admin' && (
+            <span className="mt-2 block rounded-lg border border-error-200 bg-error-50 p-2 text-xs text-error-700">
+              Warning: Promoting a user to admin grants access to all shops, designs, invitations, and audit logs across the platform.
+            </span>
+          )}
+        </p>
+      </Modal>
+
+      {/* Revoke Access Confirmation Modal */}
+      <Modal
+        open={revokeConfirmOpen}
+        onClose={() => setRevokeConfirmOpen(false)}
+        title="Revoke Shop Owner Access"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setRevokeConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" loading={actionLoading} onClick={handleConfirmRevoke}>
+              Revoke Access
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to revoke access for{' '}
+          <strong>{selectedProfile?.full_name || 'this user'}</strong>?
+          Their account will be unlinked from this shop (shop_id cleared).
+          They will no longer be able to manage invitations for this shop.
+        </p>
+      </Modal>
+
+      {/* Create Shop Owner Modal */}
+      <CreateShopOwnerModal
+        open={addOwnerOpen}
+        onClose={() => setAddOwnerOpen(false)}
+        shop={shop}
+        onCreated={() => {
+          setAddOwnerOpen(false);
+          loadData();
+        }}
+      />
+
       {/* Edit Modal */}
       <EditShopModal
         open={editOpen}
@@ -404,6 +577,124 @@ export function ShopDetailPage() {
         }}
       />
     </div>
+  );
+}
+
+function CreateShopOwnerModal({
+  open,
+  onClose,
+  shop,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  shop: Shop;
+  onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({ email: '', full_name: '', password: '' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (open) {
+      setForm({ email: '', full_name: '', password: '' });
+      setErrors({});
+    }
+  }, [open]);
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.email.trim()) e.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email format';
+    if (!form.full_name.trim()) e.full_name = 'Full name is required';
+    if (form.password && form.password.length < 6) e.password = 'Password must be at least 6 characters';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      const result = await createShopOwner({
+        email: form.email.trim(),
+        full_name: form.full_name.trim(),
+        password: form.password.trim() || undefined,
+        shop_id: shop.id,
+      });
+
+      const methodMsg =
+        result.method === 'signup'
+          ? 'Account created and ready to sign in.'
+          : result.method === 'reset_flow'
+          ? 'Password reset email sent — the owner will set their password via the emailed link.'
+          : 'Profile recorded. Please use the Supabase dashboard to invite this user and confirm signup.';
+
+      toast(`Shop owner added. ${methodMsg}`, 'success');
+      onCreated();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create shop owner';
+      if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('already registered')) {
+        setErrors({ email: 'This email is already registered. Consider using "Reset password" flow instead.' });
+      } else {
+        toast(msg, 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add Shop Owner"
+      size="md"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={loading} onClick={handleSubmit}>
+            {loading ? 'Creating...' : 'Add Shop Owner'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-lg border border-brand-200 bg-brand-50/50 p-3 text-xs text-brand-700">
+          Adding owner for shop: <strong>{shop.shop_name}</strong>. Leave password blank to send a
+          password-setup email instead.
+        </div>
+        <Input
+          label="Owner Email"
+          type="email"
+          required
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          error={errors.email}
+          placeholder="owner@example.com"
+        />
+        <Input
+          label="Owner Full Name"
+          required
+          value={form.full_name}
+          onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+          error={errors.full_name}
+          placeholder="Full name of the shop owner"
+        />
+        <Input
+          label="Temporary Password (Optional)"
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          error={errors.password}
+          placeholder="Leave blank to email a reset link"
+          hint="If omitted, Supabase will send a password-setup email to the owner."
+        />
+      </div>
+    </Modal>
   );
 }
 
@@ -443,8 +734,6 @@ function EditShopModal({
     state: shop.state || '',
     country: shop.country || '',
     business_contact: shop.business_contact || '',
-    supabase_project_url: shop.supabase_project_url || '',
-    supabase_anon_key: shop.supabase_anon_key || '',
   });
 
   const handleSave = async () => {
@@ -462,8 +751,6 @@ function EditShopModal({
         state: form.state.trim() || null,
         country: form.country.trim() || null,
         business_contact: form.business_contact.trim() || null,
-        supabase_project_url: form.supabase_project_url.trim() || null,
-        supabase_anon_key: form.supabase_anon_key.trim() || null,
       })
       .eq('id', shop.id);
 
@@ -558,21 +845,6 @@ function EditShopModal({
           value={form.address}
           onChange={(e) => setForm({ ...form, address: e.target.value })}
         />
-        <div className="rounded-lg bg-warning-50 border border-warning-200 px-3 py-2 text-xs text-warning-700">
-          Supabase configuration can be edited from the shop details page. Only public-safe anon keys are accepted here.
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Supabase Project URL"
-            value={form.supabase_project_url}
-            onChange={(e) => setForm({ ...form, supabase_project_url: e.target.value })}
-          />
-          <Input
-            label="Supabase Anon Key"
-            value={form.supabase_anon_key}
-            onChange={(e) => setForm({ ...form, supabase_anon_key: e.target.value })}
-          />
-        </div>
       </div>
     </Modal>
   );

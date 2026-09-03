@@ -21,3 +21,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Local editor metadata and reference material; neither is application source.
+.trae/
+ZAR_V2_Admin_Dashboard_Specification.docx

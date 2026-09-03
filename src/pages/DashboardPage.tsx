@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States';
-import type { AuditLog, Shop, Design, Invitation } from '@/types';
+import type { AuditLog } from '@/types';
 
 interface Stats {
   totalShops: number;

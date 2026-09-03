@@ -8,7 +8,6 @@ interface AuthContextValue {
   user: User | null;
   profile: AdminProfile | null;
   loading: boolean;
-  mfaRequired: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -21,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mfaRequired, setMfaRequired] = useState(false);
 
   const loadProfile = useCallback(async (uid: string) => {
     const { data, error } = await supabase
@@ -89,26 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (error) return { error: error.message };
-
-      // Check if MFA is required
-      if (data?.session) {
-        const { data: factors } = await supabase.auth.mfa.listFactors();
-        const totpFactor = factors?.totp?.[0];
-        if (totpFactor && totpFactor.status === 'verified') {
-          // User has MFA — sign out this session and require MFA challenge
-          await supabase.auth.signOut({ scope: 'global' });
-          setMfaRequired(true);
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          return { error: null };
-        }
-      }
 
       return { error: null };
     },
@@ -120,7 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setProfile(null);
-    setMfaRequired(false);
   }, []);
 
   const value: AuthContextValue = {
@@ -128,7 +110,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     loading,
-    mfaRequired,
     signIn,
     signOut,
     refreshProfile,

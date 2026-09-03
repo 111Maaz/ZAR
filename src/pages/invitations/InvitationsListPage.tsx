@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Mail } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -101,6 +102,16 @@ export function InvitationsListPage() {
           isAdmin
             ? 'Administrative overview of all invitations across all shops'
             : 'Overview of your shop\'s invitations'
+        }
+        action={
+          (isAdmin || profile?.shop_id) && (
+            <Link to="/invitations/new">
+              <Button>
+                <Plus className="h-4 w-4" />
+                New Invitation
+              </Button>
+            </Link>
+          )
         }
       />
 

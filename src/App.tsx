@@ -7,8 +7,6 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
-import { VerifyMFAPage } from '@/pages/auth/VerifyMFAPage';
-import { MFASetupPage } from '@/pages/auth/MFASetupPage';
 
 import { DashboardPage } from '@/pages/DashboardPage';
 import { ShopsListPage } from '@/pages/shops/ShopsListPage';
@@ -18,6 +16,7 @@ import { DesignsListPage } from '@/pages/designs/DesignsListPage';
 import { DesignCreatePage } from '@/pages/designs/DesignCreatePage';
 import { DesignDetailPage } from '@/pages/designs/DesignDetailPage';
 import { InvitationsListPage } from '@/pages/invitations/InvitationsListPage';
+import { InvitationCreatePage } from '@/pages/invitations/InvitationCreatePage';
 import { InvitationDetailPage } from '@/pages/invitations/InvitationDetailPage';
 import { AuditLogsPage } from '@/pages/AuditLogsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -32,15 +31,6 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/verify-2fa" element={<VerifyMFAPage />} />
-            <Route
-              path="/setup-2fa"
-              element={
-                <ProtectedRoute>
-                  <MFASetupPage />
-                </ProtectedRoute>
-              }
-            />
 
             {/* Protected routes */}
             <Route
@@ -50,7 +40,14 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/shops"
                 element={
@@ -75,7 +72,14 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/designs" element={<DesignsListPage />} />
+              <Route
+                path="/designs"
+                element={
+                  <ProtectedRoute>
+                    <DesignsListPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/designs/new"
                 element={
@@ -84,9 +88,38 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/designs/:designId" element={<DesignDetailPage />} />
-              <Route path="/invitations" element={<InvitationsListPage />} />
-              <Route path="/invitations/:invitationId" element={<InvitationDetailPage />} />
+              <Route
+                path="/designs/:designId"
+                element={
+                  <ProtectedRoute>
+                    <DesignDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/invitations"
+                element={
+                  <ProtectedRoute>
+                    <InvitationsListPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/invitations/new"
+                element={
+                  <ProtectedRoute>
+                    <InvitationCreatePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/invitations/:invitationId"
+                element={
+                  <ProtectedRoute>
+                    <InvitationDetailPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/audit-logs"
                 element={
@@ -95,7 +128,14 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             {/* Fallback */}

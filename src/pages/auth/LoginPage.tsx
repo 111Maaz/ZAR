@@ -30,8 +30,8 @@ export function LoginPage() {
       return;
     }
 
-    toast('Signed in successfully. Please complete 2FA verification.', 'info');
-    navigate('/verify-2fa', { state: { email, from } });
+    toast('Signed in successfully.', 'success');
+    navigate(from, { replace: true });
   };
 
   return (
